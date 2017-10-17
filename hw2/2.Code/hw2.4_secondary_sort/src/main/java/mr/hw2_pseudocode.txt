@@ -1,0 +1,178 @@
+class compositevaluewritable
+	tmaxval, tmaxcount, tminval, tmincount
+
+hw2.a.NoCombiner
+
+map(offset B, line L)
+	parts = split L on ","
+	if (parts[2] equals "TMAX")
+		emit(parts[0], compositevaluewritable(parts[3], 1, 0, 0))
+	if (parts[2] equals "TMIN")
+		emit(parts[0], compositevaluewritable(0, 0, parts[3], 1))
+
+reduce(stationid id, [compositevaluewritable1, compositevaluewritable2,...])
+	tmaxval, tmaxcount, tminval, tmincount = 0
+	for each compositevaluewritable in iterablelist do
+		tmaxval += compositevaluewritable.tmaxval
+		tmaxcount += compositevaluewritable.tmaxcount
+		tminval += compositevaluewritable.tminval
+		tmincount += compositevaluewritable.tmincount
+
+	tmaxavg = tmaxval/tmaxcount
+	tminavg = tminval/tmincount
+	result =  tminavg + tmaxavg
+	emit(id, result)
+
+
+hw2.b.Combiner
+
+map(offset B, line L)
+	parts = split L on ","
+	if (parts[2] equals "TMAX")
+		emit(parts[0], compositevaluewritable(parts[3], 1, 0, 0))
+	if (parts[2] equals "TMIN")
+		emit(parts[0], compositevaluewritable(0, 0, parts[3], 1))
+
+combine(stationid id, [compositevaluewritable1, compositevaluewritable2,...])
+	tmaxval, tmaxcount, tminval, tmincount = 0
+	for each compositevaluewritable in iterablelist do
+		tmaxval += compositevaluewritable.tmaxval
+		tmaxcount += compositevaluewritable.tmaxcount
+		tminval += compositevaluewritable.tminval
+		tmincount += compositevaluewritable.tmincount
+	emit(id, compositevaluewritable(tmaxval, tmaxcount, tminval, tmincount))
+
+reduce(stationid id, [compositevaluewritable1, compositevaluewritable2,...])
+	tmaxval, tmaxcount, tminval, tmincount = 0
+	for each compositevaluewritable in iterablelist do
+		tmaxval += compositevaluewritable.tmaxval
+		tmaxcount += compositevaluewritable.tmaxcount
+		tminval += compositevaluewritable.tminval
+		tmincount += compositevaluewritable.tmincount
+
+	tmaxavg = tmaxval/tmaxcount
+	tminavg = tminval/tmincount
+	result =  tminavg + tmaxavgj
+	emit(id, result)
+
+
+hw2.c.InMapperCombiner
+
+setup()
+	map = (stationid, compositevaluewritable)
+
+map(offset B, line L)
+	parts = split L on ","
+	if (parts[2] equals "TMAX")
+		if map has parts[0]
+			oldcompositevaluewritable = map get parts[0]
+			update oldcompositevaluewritable.tmaxval += parts[3]
+			update oldcompositevaluewritable.tmaxcount += 1
+		else
+			map put (parts[0], compositevaluewritable(parts[3], 1, 0, 0))
+
+	if (parts[2] equals "TMIN")
+		if map has parts[0]
+			oldcompositevaluewritable = map get parts[0]
+			update oldcompositevaluewritable.tminval += parts[3]
+			update oldcompositevaluewritable.tmincount += 1
+		else
+			map put (parts[0], compositevaluewritable(parts[3], 1, 0, 0))
+
+cleanup()
+	for each entry in map
+		emit(entry.key, entry.value)
+
+reduce(stationid id, [compositevaluewritable1, compositevaluewritable2,...])
+	tmaxval, tmaxcount, tminval, tmincount = 0
+	for each compositevaluewritable in iterablelist do
+		tmaxval += compositevaluewritable.tmaxval
+		tmaxcount += compositevaluewritable.tmaxcount
+		tminval += compositevaluewritable.tminval
+		tmincount += compositevaluewritable.tmincount
+
+	tmaxavg = tmaxval/tmaxcount
+	tminavg = tminval/tmincount
+	result =  tminavg + tmaxavgj
+	emit(id, result)
+
+
+------------------------------------------------------------------------------------------------------------------------------
+SECONDARY SORT
+
+class compositekeywritable
+	stationid, year
+
+class compositevaluewritable
+	year, tmaxval, tmaxcount, tminval, tmincount
+
+setup()
+	map = (compositekeywritable, compositevaluewritable)
+
+map(offset B, line L)
+	parts = split L on ","
+	if (parts[2] equals "TMAX")
+		if map has parts[0]
+			oldcompositevaluewritable = map get parts[0]
+			update oldcompositevaluewritable.tmaxval += parts[3]
+			update oldcompositevaluewritable.tmaxcount += 1
+		else
+			map.put(parts[0], compositevaluewritable(parts[3], 1, 0, 0))
+
+	if (parts[2] equals "TMIN")
+		if map has parts[0]
+			oldcompositevaluewritable = map get parts[0]
+			update oldcompositevaluewritable.tminval += parts[3]
+			update oldcompositevaluewritable.tmincount += 1
+		else
+			map.put(parts[0], compositevaluewritable(0, 0, parts[3], 1))
+
+cleanup()
+	for each entry of map
+		emit(entry.key, entry.value)
+
+reduce(compositekeywritable key, [compositevaluewritable1, compositevaluewritable2,...])
+	list = []
+	tmaxval, tmaxcount, tminval, tmincount = 0
+	year = null
+	for each secondary_sort_data_writable in list do
+		if year == null 
+			set currentvaluewritable = compositevaluewritable
+			year = compositevaluewritable1.year
+		else if year == compositevaluewritable.year
+			update currentvaluewritable.tmaxval += compositevaluewritable.tmaxval
+			update currentvaluewritable.tminval += compositevaluewritable.tminval
+			update currentvaluewritable.tmaxcount += compositevaluewritable.tmaxcount
+			update currentvaluewritable.tmincount += compositevaluewritable.tmincount
+		else
+			list add calavg(currentvaluewritable)
+			set currentvaluewritable = compositevaluewritable
+			year = compositevaluewritable1.year
+
+	# Calculation tmax avg and tmin avg for last year in this reduce task which
+	# wont hit the loop
+	list add calavg(currentvaluewritable)
+	
+	result = list to string
+	emit(key.stationid, result)
+	
+calavg(compositevaluewritable val)
+	tmaxavg, tminavg, result = null;
+	if val.tmaxcount is 0 
+	else
+		tmaxavg = val.tmaxval/val.tmaxcount
+	if val.tmincount is 0 
+	else
+		tminavg = val.tminval/val.tmincount
+	result = tmaxavg + tminavg
+
+key_comparator(compositekeywritable k1, compositekeywritable k2)
+	result = compare(k1.stationid, k2.station_id)
+	if result is 0
+		result = compare(k1.year, k2.year)
+	return result
+
+group_comparator(compositekeywritable k1, compositekeywritable k2)
+	return compare(k1.stationid, k2.stationid)
+
+------------------------------------------------------------------------------------------------------------------------------
